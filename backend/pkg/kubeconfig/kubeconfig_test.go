@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -321,7 +320,7 @@ func createTempKubeconfig(t *testing.T, content string) string {
 }
 
 func TestContext(t *testing.T) {
-	kubeConfigFile := config.GetDefaultKubeConfigPath()
+	kubeConfigFile := kubeConfigFilePath
 
 	configStore := kubeconfig.NewContextStore()
 
@@ -334,6 +333,22 @@ func TestContext(t *testing.T) {
 	require.Equal(t, "minikube", testContext.Name)
 	require.NotNil(t, testContext.ClientConfig())
 	require.Equal(t, "default", testContext.KubeContext.Namespace)
+
+	// Create a mock server
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"major": "1", "minor": "20"}`))
+	}))
+	defer ts.Close()
+
+	// Point the context to the mock server
+	testContext.Cluster.Server = ts.URL
+	testContext.Cluster.InsecureSkipTLSVerify = true
+	testContext.Cluster.CertificateAuthorityData = nil
+
+	// Force recreation of the proxy with the new URL
+	err = testContext.SetupProxy()
+	require.NoError(t, err)
 
 	restConf, err := testContext.RESTConfig()
 	require.NoError(t, err)

@@ -450,28 +450,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(config.oidcIdpIssuerURL,
-			config.oidcClientID, config.oidcClientSecret,
-			strings.Join(config.oidcScopes, ","),
-			config.oidcSkipTLSVerify,
-			config.oidcCACert)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
-
-		if context != nil {
-			context.Source = kubeconfig.InCluster
-
-			err = context.SetupProxy()
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-			}
-
-			err = config.KubeConfigStore.AddContext(context)
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-			}
-		}
+		config.loadInClusterContext()
 	}
 
 	if config.StaticDir != "" {
@@ -510,10 +489,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
 	}
 
-	err = kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPersistenceFile,
-		kubeconfig.DynamicCluster, skipFunc)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+	if fileExists(kubeConfigPersistenceFile) {
+		err = kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPersistenceFile,
+			kubeconfig.DynamicCluster, skipFunc)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+		}
 	}
 
 	addPluginRoutes(config, r)
@@ -2558,4 +2539,30 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (c *HeadlampConfig) loadInClusterContext() {
+
+	context, err := kubeconfig.GetInClusterContext(c.oidcIdpIssuerURL,
+		c.oidcClientID, c.oidcClientSecret,
+		strings.Join(c.oidcScopes, ","),
+		c.oidcSkipTLSVerify,
+		c.oidcCACert)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+	}
+
+	if context != nil {
+		context.Source = kubeconfig.InCluster
+
+		err = context.SetupProxy()
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+		}
+
+		err = c.KubeConfigStore.AddContext(context)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+		}
+	}
 }

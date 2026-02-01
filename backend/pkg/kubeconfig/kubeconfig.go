@@ -505,7 +505,8 @@ func LoadContextsFromMultipleFiles(kubeConfigs string, source int) ([]Context, [
 
 	kubeConfigPaths := splitKubeConfigPath(kubeConfigs)
 	for _, kubeConfigPath := range kubeConfigPaths {
-		if strings.TrimSpace(kubeConfigPath) == "" {
+		kubeConfigPath = strings.TrimSpace(kubeConfigPath)
+		if kubeConfigPath == "" {
 			continue
 		}
 
